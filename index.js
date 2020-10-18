@@ -48,8 +48,10 @@ const Instauto = async (db, browser, options) => {
     dontUnfollowUntilTimeElapsed = 3 * 24 * 60 * 60 * 1000,
 
     excludeUsers = [],
+    excludeUsersFollowing = [],
 
     dryRun = true,
+    loadFollowersFromCache = false,
 
     screenshotOnError = false,
     screenshotsPath = '.',
@@ -67,6 +69,7 @@ const Instauto = async (db, browser, options) => {
   const {
     addPrevFollowedUser, getPrevFollowedUser, addPrevUnfollowedUser, getLikedPhotosLastTimeUnit,
     getPrevUnfollowedUsers, getPrevFollowedUsers, addLikedPhoto,
+    getAllFollowers, getAllFollowing, setAllFollowers, setAllFollowing,
   } = db;
 
   const getNumLikesThisTimeUnit = (time) => getLikedPhotosLastTimeUnit(time).length;
@@ -316,7 +319,14 @@ const Instauto = async (db, browser, options) => {
       first: 50,
     };
 
-    const outUsers = [];
+    const outUsers = loadFollowersFromCache 
+      ? 
+        getFollowers 
+          ? getAllFollowers()
+          : getAllFollowing()
+      : [];
+
+    if (loadFollowersFromCache && outUsers.length > 0) return outUsers;
 
     let hasNextPage = true;
     let i = 0;
@@ -347,8 +357,16 @@ const Instauto = async (db, browser, options) => {
 
       if (shouldProceed()) {
         logger.log(`Has more pages (current ${i})`);
-        // await sleep(300);
+        if (i % 3 === 0) {
+          await sleep(30 * 1000);
+        }
       }
+    }
+
+    if (getFollowers) {
+      setAllFollowers(outUsers);  
+    } else {
+      setAllFollowing(outUsers);
     }
 
     return outUsers;
@@ -501,6 +519,8 @@ const Instauto = async (db, browser, options) => {
 
         if (isPrivate && skipPrivate) {
           logger.log('User is private, skipping');
+        } else if (excludeUsersFollowing.includes(follower)) {
+          logger.log('User is excluded from following, skipping');
         } else if (
           (followUserMaxFollowers != null && followedByCount > followUserMaxFollowers) ||
           (followUserMaxFollowing != null && followsCount > followUserMaxFollowing) ||

@@ -7,19 +7,26 @@ module.exports = async ({
   followedDbPath,
   unfollowedDbPath,
   likedPhotosDbPath,
+  allFollowersDbPath,
+  allFollowingDbPath,
 
   logger = console,
 }) => {
   let prevFollowedUsers = {};
   let prevUnfollowedUsers = {};
   let prevLikedPhotos = [];
+  let allFollowers= [];
+  let allFollowing = [];
 
   async function trySaveDb() {
     try {
       await fs.writeFile(followedDbPath, JSON.stringify(Object.values(prevFollowedUsers)));
       await fs.writeFile(unfollowedDbPath, JSON.stringify(Object.values(prevUnfollowedUsers)));
       await fs.writeFile(likedPhotosDbPath, JSON.stringify(prevLikedPhotos));
+      if (allFollowersDbPath) await fs.writeFile(allFollowersDbPath, JSON.stringify(allFollowers));
+      if (allFollowingDbPath) await fs.writeFile(allFollowingDbPath, JSON.stringify(allFollowing));
     } catch (err) {
+    logger.error(err);
       logger.error('Failed to save database');
     }
   }
@@ -39,6 +46,16 @@ module.exports = async ({
       prevLikedPhotos = JSON.parse(await fs.readFile(likedPhotosDbPath));
     } catch (err) {
       logger.warn('No likes database found');
+    }
+    try {
+      if (allFollowersDbPath) allFollowers = JSON.parse(await fs.readFile(allFollowersDbPath));
+    } catch (err) {
+      logger.warn('No allFollowers database found');
+    }
+    try {
+      if (allFollowingDbPath) allFollowing = JSON.parse(await fs.readFile(allFollowingDbPath));
+    } catch (err) {
+      logger.warn('No allFollowing database found');
     }
   }
 
@@ -68,7 +85,6 @@ module.exports = async ({
     return getPrevFollowedUsers().length; // TODO performance
   }
 
-
   function getFollowedLastTimeUnit(timeUnit) {
     const now = new Date().getTime();
     return getPrevFollowedUsers().filter(u => now - u.time < timeUnit);
@@ -80,6 +96,7 @@ module.exports = async ({
 
   async function addPrevFollowedUser(user) {
     prevFollowedUsers[user.username] = user;
+    allFollowers.push(user.username);
     await trySaveDb();
   }
 
@@ -98,6 +115,25 @@ module.exports = async ({
 
   async function addPrevUnfollowedUser(user) {
     prevUnfollowedUsers[user.username] = user;
+    allFollowing = allFollowing.filter(username => username !== user.username);
+    await trySaveDb();
+  }
+
+  function getAllFollowers() {
+    return allFollowers;
+  }
+
+  function getAllFollowing() {
+    return allFollowing;
+  }
+
+  async function setAllFollowers(users) {
+    allFollowers = users;
+    await trySaveDb();
+  }
+
+  async function setAllFollowing(users) {
+    allFollowing = users;
     await trySaveDb();
   }
 
@@ -118,5 +154,9 @@ module.exports = async ({
     getTotalFollowedUsers,
     getTotalUnfollowedUsers,
     getTotalLikedPhotos,
+    getAllFollowers,
+    getAllFollowing,
+    setAllFollowers,
+    setAllFollowing,
   };
 };
